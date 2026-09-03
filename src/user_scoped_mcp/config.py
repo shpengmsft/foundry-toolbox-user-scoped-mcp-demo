@@ -24,12 +24,16 @@ def _csv_set(name: str, default: str = "") -> frozenset[str]:
 @lru_cache
 def get_settings() -> Settings:
     auth_mode = os.getenv("AUTH_MODE", "demo").lower()
-    if auth_mode not in {"demo", "entra"}:
-        raise ValueError("AUTH_MODE must be either 'demo' or 'entra'")
+    if auth_mode not in {"demo", "entra", "entra_passthrough"}:
+        raise ValueError(
+            "AUTH_MODE must be 'demo', 'entra', or 'entra_passthrough'"
+        )
 
     tenant_id = os.getenv("ENTRA_TENANT_ID")
     audience = os.getenv("ENTRA_AUDIENCE")
-    if auth_mode == "entra" and (not tenant_id or not audience):
+    if auth_mode in {"entra", "entra_passthrough"} and not tenant_id:
+        raise ValueError("ENTRA_TENANT_ID is required for Entra authentication")
+    if auth_mode == "entra" and not audience:
         raise ValueError("ENTRA_TENANT_ID and ENTRA_AUDIENCE are required in entra mode")
 
     return Settings(

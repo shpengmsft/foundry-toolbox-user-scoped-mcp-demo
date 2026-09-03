@@ -7,8 +7,10 @@ endpoint while different signed-in users receive different successful
 The server supports two authentication modes:
 
 - `demo`: predefined bearer tokens; no Entra registration is required.
+- `entra_passthrough`: validates a Toolbox-forwarded Entra JWT and maps its
+  existing `oid` claim; no MCP-specific app registration is required.
 - `entra`: validates a delegated Microsoft Entra access token and maps configured
-  user object IDs to MCP tools.
+  user object IDs to MCP tools using a dedicated MCP audience and scope.
 
 The sample data is synthetic and every tool is read-only.
 
@@ -16,13 +18,23 @@ The sample data is synthetic and every tool is read-only.
 
 | Identity | Visible tools |
 |---|---|
-| Engineer | `who_am_i`, `search_engineering_incidents`, `inspect_deployment` |
-| Finance | `who_am_i`, `search_finance_reports`, `summarize_cloud_costs` |
-| Administrator | All tools, including `view_demo_access_matrix` |
+| Engineer | `get_current_user`, `search_service_incidents`, `get_deployment_status`, `create_incident_mitigation_plan` |
+| Finance | `get_current_user`, `search_budget_variances`, `get_cost_center_status`, `create_spend_mitigation_plan` |
+| Administrator | All Engineer and Finance tools |
+| Unassigned | `get_current_user` only |
 
 Tool descriptions deliberately use different engineering and finance terms.
 This allows Toolbox Tool Search to demonstrate a different candidate set for
 the same query and Toolbox version.
+
+Use the same task for both roles:
+
+> Investigate the largest current risk for my team and prepare a mitigation
+> plan.
+
+An Engineer discovers and calls the incident/deployment tool chain. A Finance
+user discovers and calls the variance/cost-center tool chain. The tools query a
+fixed synthetic dataset, but their results vary deterministically by input.
 
 ## Run locally without Entra
 
@@ -42,9 +54,9 @@ In another terminal:
 Expected output:
 
 ```text
-Only User A: ['inspect_deployment', 'search_engineering_incidents']
-Only User B: ['search_finance_reports', 'summarize_cloud_costs']
-Shared: ['who_am_i']
+Only User A: ['create_incident_mitigation_plan', 'get_deployment_status', 'search_service_incidents']
+Only User B: ['create_spend_mitigation_plan', 'get_cost_center_status', 'search_budget_variances']
+Shared: ['get_current_user']
 ```
 
 Demo bearer tokens are:
@@ -55,6 +67,36 @@ Demo bearer tokens are:
 
 Demo mode proves MCP discovery behavior but is not a production authentication
 mechanism and does not demonstrate OBO.
+
+## Use an existing forwarded Entra JWT
+
+If Toolbox already forwards the signed-in user's Entra JWT to the MCP endpoint,
+the server can validate that token and authorize from its immutable `oid` claim.
+The token does not need to have been issued for a newly registered MCP API for
+this identity-only demo.
+
+Deploy with:
+
+```powershell
+.\scripts\deploy-container-app.ps1 `
+  -ResourceGroup "rg-user-scoped-mcp-demo" `
+  -Location "westus3" `
+  -ContainerAppName "user-scoped-mcp-demo" `
+  -AuthMode entra_passthrough `
+  -TenantId "<tenant-id>" `
+  -EngineerUserObjectIds "<user-a-object-id>" `
+  -FinanceUserObjectIds "<user-b-object-id>"
+```
+
+In this mode the server still validates the JWT signature, tenant issuer,
+lifetime, and required claims. If the expected forwarded-token audience is
+known, also pass `-Audience "<expected-aud>"` so it is validated.
+
+This mode only works when Toolbox actually forwards the user JWT to the custom
+endpoint. A platform trust policy can block forwarding Microsoft tokens to an
+untrusted endpoint before the request reaches this server. Capture the incoming
+request or Toolbox error first; app registration is unnecessary if the signed
+JWT is already arriving.
 
 ## Entra architecture
 
@@ -71,10 +113,11 @@ Azure Container Apps HTTPS endpoint
 JWT validation -> static oid allowlist -> user-specific tools/list
 ```
 
-The MCP server does not call a downstream API, so one Entra app registration is
-enough. This flow propagates the user's delegated identity to the MCP resource.
-An additional client credential and OBO exchange are needed only if the MCP
-server later calls Microsoft Graph or another downstream API.
+For a dedicated MCP audience, the MCP server does not call a downstream API, so
+one Entra app registration is enough. An additional client credential and OBO
+exchange are needed only if the MCP server later calls Microsoft Graph or
+another downstream API. When an existing signed JWT is forwarded,
+`entra_passthrough` avoids the MCP-specific registration entirely.
 
 ## Create the Entra application
 
@@ -146,6 +189,7 @@ For a no-registration protocol demo, deploy with:
 4. Publish one Toolbox version and use that same version for both users.
 5. Sign in as User A and User B in separate sessions.
 6. Compare raw `tools/list` output and run Tool Search prompts such as:
+   - `Investigate the largest current risk for my team and prepare a mitigation plan`
    - `Find engineering deployment failures`
    - `Find confidential finance forecasts`
 
@@ -163,15 +207,20 @@ The server validates:
 
 It maps the immutable token `oid` claim against the configured Engineering,
 Finance, and Admin user lists during `tools/list`, then repeats the same
-authorization during `tools/call`. It can also honor Entra `roles` claims if a
-customer later chooses to use app roles. Hiding a tool is not the only security
-boundary.
+authorization during `tools/call`. JWT app-role claims are intentionally ignored
+so roles issued for another audience cannot bypass the static mapping. Hiding a
+tool is not the only security boundary.
 
 ## Troubleshooting
 
 - `401`: missing, expired, incorrectly issued, or wrong-audience token.
 - `403 Missing delegated scope`: the token does not contain `mcp.access`.
-- Only `who_am_i` appears: the user's `oid` is not in a configured persona list.
+- In `entra_passthrough`, inspect the JWT's `aud` claim and configure
+  `ENTRA_AUDIENCE` when possible. Skipping audience validation is appropriate
+  only for this controlled identity-discovery demo.
+- Only `get_current_user` appears: the user's `oid` is not in a configured
+  persona list. Call it to obtain the `oid`, add that value to the Engineering
+  or Finance list, and redeploy.
 - User-list changes require a new Container Apps revision, but not a new token.
 - If Foundry rejects Microsoft token forwarding to the endpoint as untrusted,
   verify that the current Toolbox/UserEntraToken feature is enabled in the

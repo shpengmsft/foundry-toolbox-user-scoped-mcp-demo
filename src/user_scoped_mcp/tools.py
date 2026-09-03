@@ -10,6 +10,7 @@ from .auth import Actor
 class ToolDefinition:
     name: str
     description: str
+    input_schema: dict[str, Any]
     required_role: str | None
     handler: Callable[[Actor, dict[str, Any]], dict[str, Any]]
 
@@ -17,97 +18,297 @@ class ToolDefinition:
         return {
             "name": self.name,
             "description": self.description,
-            "inputSchema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False,
-            },
+            "inputSchema": self.input_schema,
             "annotations": {"readOnlyHint": True},
         }
 
 
-def _identity(actor: Actor, _: dict[str, Any]) -> dict[str, Any]:
+EMPTY_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": False,
+}
+
+SEARCH_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {
+            "type": "string",
+            "description": "Optional words used to filter the synthetic records.",
+        }
+    },
+    "additionalProperties": False,
+}
+
+
+SERVICE_INCIDENTS = (
+    {
+        "id": "ENG-1042",
+        "service": "checkout-api",
+        "title": "Elevated checkout latency after deployment",
+        "severity": 2,
+        "status": "Investigating",
+    },
+    {
+        "id": "ENG-1048",
+        "service": "orders-worker",
+        "title": "Order processing backlog",
+        "severity": 3,
+        "status": "Mitigating",
+    },
+)
+
+DEPLOYMENTS = {
+    "checkout-api": {
+        "service": "checkout-api",
+        "environment": "production",
+        "version": "2026.09.02.3",
+        "healthy": False,
+        "failedChecks": ["latency-slo"],
+    },
+    "orders-worker": {
+        "service": "orders-worker",
+        "environment": "production",
+        "version": "2026.09.01.7",
+        "healthy": True,
+        "failedChecks": [],
+    },
+}
+
+BUDGET_VARIANCES = (
+    {
+        "id": "FIN-2041",
+        "costCenter": "CC-100",
+        "category": "Cloud infrastructure",
+        "variancePercent": 18.4,
+        "status": "Over budget",
+    },
+    {
+        "id": "FIN-2046",
+        "costCenter": "CC-200",
+        "category": "Contractor services",
+        "variancePercent": 7.2,
+        "status": "Watch",
+    },
+)
+
+COST_CENTERS = {
+    "CC-100": {
+        "costCenter": "CC-100",
+        "name": "Digital commerce",
+        "currency": "USD",
+        "monthlyBudget": 70000,
+        "actualSpend": 82880,
+    },
+    "CC-200": {
+        "costCenter": "CC-200",
+        "name": "Business operations",
+        "currency": "USD",
+        "monthlyBudget": 50000,
+        "actualSpend": 53600,
+    },
+}
+
+
+def _required_string(arguments: dict[str, Any], name: str) -> str:
+    value = arguments.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value.strip()
+
+
+def _current_user(actor: Actor, _: dict[str, Any]) -> dict[str, Any]:
+    if "Demo.Admin" in actor.roles:
+        role = "Administrator"
+    elif len(actor.roles) == 1:
+        role = next(iter(actor.roles))
+    elif actor.roles:
+        role = "Multiple"
+    else:
+        role = "Unassigned"
+
     return {
         "objectId": actor.object_id,
         "displayName": actor.display_name,
-        "roles": sorted(actor.roles),
+        "role": role,
+        "effectiveRoles": sorted(actor.roles),
     }
 
 
-def _engineering_incidents(_: Actor, __: dict[str, Any]) -> dict[str, Any]:
+def _search_records(records: tuple[dict[str, Any], ...], query: str) -> list[dict[str, Any]]:
+    words = query.lower().split()
+    if not words:
+        return list(records)
+    return [
+        record
+        for record in records
+        if all(word in json.dumps(record).lower() for word in words)
+    ]
+
+
+def _search_service_incidents(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
+    query = str(arguments.get("query", "")).strip()
+    return {"query": query, "incidents": _search_records(SERVICE_INCIDENTS, query)}
+
+
+def _get_deployment_status(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
+    service = _required_string(arguments, "service")
+    deployment = DEPLOYMENTS.get(service)
+    if deployment is None:
+        return {"service": service, "found": False}
+    return {"found": True, "deployment": deployment}
+
+
+def _create_incident_mitigation_plan(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
+    incident_id = _required_string(arguments, "incident_id")
+    incident = next(
+        (item for item in SERVICE_INCIDENTS if item["id"] == incident_id),
+        None,
+    )
+    if incident is None:
+        return {"incidentId": incident_id, "found": False}
     return {
-        "incidents": [
-            {"id": "ENG-1042", "title": "Deployment health probe failed", "severity": 2},
-            {"id": "ENG-1048", "title": "Build agent capacity warning", "severity": 3},
-        ]
+        "incidentId": incident_id,
+        "found": True,
+        "plan": [
+            f"Validate the current {incident['service']} deployment health.",
+            "Compare the failing signal with the previous healthy version.",
+            "Prepare a rollback recommendation and stakeholder update.",
+        ],
     }
 
 
-def _deployment(_: Actor, __: dict[str, Any]) -> dict[str, Any]:
-    return {"environment": "demo-production", "version": "2026.09.02", "healthy": True}
+def _search_budget_variances(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
+    query = str(arguments.get("query", "")).strip()
+    return {"query": query, "variances": _search_records(BUDGET_VARIANCES, query)}
 
 
-def _finance_reports(_: Actor, __: dict[str, Any]) -> dict[str, Any]:
+def _get_cost_center_status(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
+    cost_center = _required_string(arguments, "cost_center")
+    status = COST_CENTERS.get(cost_center.upper())
+    if status is None:
+        return {"costCenter": cost_center, "found": False}
+    return {"found": True, "status": status}
+
+
+def _create_spend_mitigation_plan(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
+    variance_id = _required_string(arguments, "variance_id")
+    variance = next(
+        (item for item in BUDGET_VARIANCES if item["id"] == variance_id),
+        None,
+    )
+    if variance is None:
+        return {"varianceId": variance_id, "found": False}
     return {
-        "reports": [
-            {"name": "FY26 Q1 forecast", "status": "Draft"},
-            {"name": "August cloud spend", "status": "Final"},
-        ]
-    }
-
-
-def _cloud_costs(_: Actor, __: dict[str, Any]) -> dict[str, Any]:
-    return {"currency": "USD", "month": "2026-08", "total": 12840.15}
-
-
-def _access_matrix(_: Actor, __: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "roles": {
-            "Engineering": ["search_engineering_incidents", "inspect_deployment"],
-            "Finance": ["search_finance_reports", "summarize_cloud_costs"],
-            "Demo.Admin": ["view_demo_access_matrix"],
-        }
+        "varianceId": variance_id,
+        "found": True,
+        "plan": [
+            f"Review {variance['category']} charges for {variance['costCenter']}.",
+            "Identify discretionary spend and owner-approved commitments.",
+            "Prepare a forecast adjustment and cost-control recommendation.",
+        ],
     }
 
 
 TOOLS = (
     ToolDefinition(
-        name="who_am_i",
-        description="Show the signed-in user identity and effective demo roles.",
-        required_role=None,
-        handler=_identity,
-    ),
-    ToolDefinition(
-        name="search_engineering_incidents",
+        name="get_current_user",
         description=(
-            "Search private engineering incidents, deployment failures, and service alerts."
+            "Show the signed-in user's JWT object ID, display name, and assigned demo role."
         ),
+        input_schema=EMPTY_INPUT_SCHEMA,
+        required_role=None,
+        handler=_current_user,
+    ),
+    ToolDefinition(
+        name="search_service_incidents",
+        description=(
+            "Search engineering service incidents, production risks, failures, and alerts."
+        ),
+        input_schema=SEARCH_INPUT_SCHEMA,
         required_role="Engineering",
-        handler=_engineering_incidents,
+        handler=_search_service_incidents,
     ),
     ToolDefinition(
-        name="inspect_deployment",
-        description="Inspect the current application deployment, version, and health status.",
+        name="get_deployment_status",
+        description="Get deployment version and health details for an engineering service.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "service": {
+                    "type": "string",
+                    "description": "Service name, such as checkout-api.",
+                }
+            },
+            "required": ["service"],
+            "additionalProperties": False,
+        },
         required_role="Engineering",
-        handler=_deployment,
+        handler=_get_deployment_status,
     ),
     ToolDefinition(
-        name="search_finance_reports",
-        description="Search confidential finance forecasts, budgets, and quarterly reports.",
+        name="create_incident_mitigation_plan",
+        description=(
+            "Create a read-only engineering mitigation plan for a synthetic service incident."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "incident_id": {
+                    "type": "string",
+                    "description": "Synthetic incident ID, such as ENG-1042.",
+                }
+            },
+            "required": ["incident_id"],
+            "additionalProperties": False,
+        },
+        required_role="Engineering",
+        handler=_create_incident_mitigation_plan,
+    ),
+    ToolDefinition(
+        name="search_budget_variances",
+        description=(
+            "Search finance budget overruns, spending anomalies, forecasts, and risks."
+        ),
+        input_schema=SEARCH_INPUT_SCHEMA,
         required_role="Finance",
-        handler=_finance_reports,
+        handler=_search_budget_variances,
     ),
     ToolDefinition(
-        name="summarize_cloud_costs",
-        description="Summarize cloud costs, spending, budgets, and financial variance.",
+        name="get_cost_center_status",
+        description="Get budget and actual spending details for a finance cost center.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "cost_center": {
+                    "type": "string",
+                    "description": "Synthetic cost center, such as CC-100.",
+                }
+            },
+            "required": ["cost_center"],
+            "additionalProperties": False,
+        },
         required_role="Finance",
-        handler=_cloud_costs,
+        handler=_get_cost_center_status,
     ),
     ToolDefinition(
-        name="view_demo_access_matrix",
-        description="View the demo role-to-tool authorization matrix.",
-        required_role="Demo.Admin",
-        handler=_access_matrix,
+        name="create_spend_mitigation_plan",
+        description=(
+            "Create a read-only finance mitigation plan for a synthetic budget variance."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "variance_id": {
+                    "type": "string",
+                    "description": "Synthetic variance ID, such as FIN-2041.",
+                }
+            },
+            "required": ["variance_id"],
+            "additionalProperties": False,
+        },
+        required_role="Finance",
+        handler=_create_spend_mitigation_plan,
     ),
 )
 

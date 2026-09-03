@@ -62,20 +62,23 @@ def _actor_from_demo_token(token: str) -> Actor:
 
 def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
     assert settings.tenant_id is not None
-    assert settings.audience is not None
 
     issuer = f"https://login.microsoftonline.com/{settings.tenant_id}/v2.0"
     jwks_uri = f"https://login.microsoftonline.com/{settings.tenant_id}/discovery/v2.0/keys"
 
     try:
         signing_key = jwt.PyJWKClient(jwks_uri).get_signing_key_from_jwt(token)
+        decode_options = {"require": ["exp", "iat", "iss", "aud", "oid"]}
+        if settings.auth_mode == "entra_passthrough" and settings.audience is None:
+            decode_options["verify_aud"] = False
+
         claims = jwt.decode(
             token,
             signing_key.key,
             algorithms=["RS256"],
             audience=settings.audience,
             issuer=issuer,
-            options={"require": ["exp", "iat", "iss", "aud", "oid"]},
+            options=decode_options,
         )
     except jwt.PyJWTError as exc:
         raise HTTPException(
@@ -85,14 +88,14 @@ def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
         ) from exc
 
     scopes = frozenset(str(claims.get("scp", "")).split())
-    if settings.required_scope not in scopes:
+    if settings.auth_mode == "entra" and settings.required_scope not in scopes:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Missing delegated scope: {settings.required_scope}",
         )
 
     object_id = str(claims["oid"])
-    roles = {str(role) for role in claims.get("roles", [])}
+    roles: set[str] = set()
     if object_id in settings.engineering_user_ids:
         roles.add("Engineering")
     if object_id in settings.finance_user_ids:

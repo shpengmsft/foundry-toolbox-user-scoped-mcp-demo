@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory)]
     [string]$ContainerAppName,
 
-    [ValidateSet("demo", "entra")]
+    [ValidateSet("demo", "entra", "entra_passthrough")]
     [string]$AuthMode = "entra",
 
     [string]$TenantId,
@@ -24,7 +24,11 @@ if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
     throw "Azure CLI is required."
 }
 
-if ($AuthMode -eq "entra" -and (-not $TenantId -or -not $Audience)) {
+if ($AuthMode -in @("entra", "entra_passthrough") -and -not $TenantId) {
+    throw "TenantId is required for Entra authentication."
+}
+
+if ($AuthMode -eq "entra" -and -not $Audience) {
     throw "TenantId and Audience are required in entra mode."
 }
 
@@ -35,10 +39,14 @@ az group create `
     --output none
 
 $environmentVariables = @("AUTH_MODE=$AuthMode")
-if ($AuthMode -eq "entra") {
+if ($AuthMode -in @("entra", "entra_passthrough")) {
     $environmentVariables += "ENTRA_TENANT_ID=$TenantId"
-    $environmentVariables += "ENTRA_AUDIENCE=$Audience"
-    $environmentVariables += "ENTRA_REQUIRED_SCOPE=mcp.access"
+    if ($Audience) {
+        $environmentVariables += "ENTRA_AUDIENCE=$Audience"
+    }
+    if ($AuthMode -eq "entra") {
+        $environmentVariables += "ENTRA_REQUIRED_SCOPE=mcp.access"
+    }
     if ($EngineerUserObjectIds) {
         $environmentVariables += "ENGINEERING_USER_IDS=$EngineerUserObjectIds"
     }

@@ -102,6 +102,8 @@ async def mcp(request: Request) -> Response:
             result = call_tool(actor, name, arguments)
         except LookupError as exc:
             return JSONResponse(_error(request_id, -32602, str(exc)))
+        except ValueError as exc:
+            return JSONResponse(_error(request_id, -32602, str(exc)))
         except PermissionError as exc:
             return JSONResponse(_error(request_id, -32003, str(exc)))
         return JSONResponse(_result(request_id, result))
