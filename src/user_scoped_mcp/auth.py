@@ -63,12 +63,25 @@ def _actor_from_demo_token(token: str) -> Actor:
 def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
     assert settings.tenant_id is not None
 
-    issuer = f"https://login.microsoftonline.com/{settings.tenant_id}/v2.0"
+    allowed_issuers = {
+        f"https://login.microsoftonline.com/{settings.tenant_id}/v2.0",
+        f"https://sts.windows.net/{settings.tenant_id}/",
+    }
     jwks_uri = f"https://login.microsoftonline.com/{settings.tenant_id}/discovery/v2.0/keys"
 
     try:
+        unverified_claims = jwt.decode(
+            token,
+            options={"verify_signature": False, "verify_aud": False},
+        )
+        issuer = str(unverified_claims.get("iss", ""))
+        if issuer not in allowed_issuers:
+            raise jwt.InvalidIssuerError("Token issuer is not allowed")
+        if str(unverified_claims.get("tid", "")) != settings.tenant_id:
+            raise jwt.InvalidIssuerError("Token tenant is not allowed")
+
         signing_key = jwt.PyJWKClient(jwks_uri).get_signing_key_from_jwt(token)
-        decode_options = {"require": ["exp", "iat", "iss", "aud", "oid"]}
+        decode_options = {"require": ["exp", "iat", "iss", "aud", "oid", "tid"]}
         if settings.auth_mode == "entra_passthrough" and settings.audience is None:
             decode_options["verify_aud"] = False
 

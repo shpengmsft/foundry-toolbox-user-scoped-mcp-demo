@@ -19,6 +19,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
+$env:PYTHONIOENCODING = "utf-8"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
     throw "Azure CLI is required."
@@ -65,8 +68,7 @@ az containerapp up `
     --source $repoRoot `
     --ingress external `
     --target-port 8000 `
-    --env-vars $environmentVariables `
-    --output none
+    --env-vars $environmentVariables
 
 $fqdn = az containerapp show `
     --name $ContainerAppName `

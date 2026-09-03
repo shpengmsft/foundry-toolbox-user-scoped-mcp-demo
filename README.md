@@ -88,9 +88,9 @@ Deploy with:
   -FinanceUserObjectIds "<user-b-object-id>"
 ```
 
-In this mode the server still validates the JWT signature, tenant issuer,
-lifetime, and required claims. If the expected forwarded-token audience is
-known, also pass `-Audience "<expected-aud>"` so it is validated.
+In this mode the server still validates the JWT signature, Entra v1 or v2 tenant
+issuer, lifetime, and required claims. If the expected forwarded-token audience
+is known, also pass `-Audience "<expected-aud>"` so it is validated.
 
 This mode only works when Toolbox actually forwards the user JWT to the custom
 endpoint. A platform trust policy can block forwarding Microsoft tokens to an

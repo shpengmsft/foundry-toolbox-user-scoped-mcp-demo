@@ -171,12 +171,18 @@ def test_entra_passthrough_maps_oid_without_dedicated_scope(monkeypatch):
             return SimpleNamespace(key="test-key")
 
     def fake_decode(*args, **kwargs):
+        if kwargs.get("options", {}).get("verify_signature") is False:
+            return {
+                "iss": "https://login.microsoftonline.com/tenant-id/v2.0",
+                "tid": "tenant-id",
+            }
         assert kwargs["audience"] is None
         assert kwargs["options"]["verify_aud"] is False
         return {
             "oid": "engineer-oid",
             "name": "Engineer",
             "aud": "existing-foundry-audience",
+            "tid": "tenant-id",
             "roles": ["Finance"],
         }
 
