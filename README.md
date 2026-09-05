@@ -4,9 +4,18 @@ This sample demonstrates one Azure AI Foundry Toolbox using the same remote MCP
 endpoint while different signed-in users receive different successful
 `tools/list` responses.
 
-The server supports two authentication modes:
+> **Current limitation:** native Entra OAuth identity passthrough remains
+> blocked in the test tenant by its client-secret policy. This repository now
+> includes a demo-only OAuth provider so automation can still exercise the
+> complete Foundry OAuth redirect, code exchange, refresh, bearer-token, and
+> user-specific discovery path. See
+> [Why native Entra passthrough is blocked](docs/implementation-blocker.md).
+
+The server supports four authentication modes:
 
 - `demo`: predefined bearer tokens; no Entra registration is required.
+- `fake_oauth`: test-only OAuth authorization-code provider with deterministic
+  Engineer, Finance, and Administrator identities.
 - `entra_passthrough`: validates a Toolbox-forwarded Entra JWT and maps its
   existing `oid` claim; no MCP-specific app registration is required.
 - `entra`: validates a delegated Microsoft Entra access token and maps configured
@@ -67,6 +76,105 @@ Demo bearer tokens are:
 
 Demo mode proves MCP discovery behavior but is not a production authentication
 mechanism and does not demonstrate OBO.
+
+## Run the fake OAuth provider
+
+`fake_oauth` mode exists for automated OAuth identity-passthrough testing when
+the tenant does not permit an Entra client secret. It implements:
+
+- OAuth authorization-code flow with optional PKCE.
+- One-time authorization codes.
+- Refresh-token flow.
+- Short-lived RS256 access tokens.
+- OpenID discovery and JWKS endpoints.
+- Deterministic Engineer, Finance, and Administrator test identities.
+- Exact redirect URI allowlisting.
+
+Start it locally:
+
+```powershell
+$env:AUTH_MODE = "fake_oauth"
+$env:FAKE_OAUTH_ISSUER = "http://localhost:8000"
+$env:FAKE_OAUTH_CLIENT_ID = "foundry-test-client"
+$env:FAKE_OAUTH_REDIRECT_URIS = "http://localhost:8400/callback"
+.\.venv\Scripts\user-scoped-mcp
+```
+
+Endpoints:
+
+| Purpose | URL |
+|---|---|
+| Authorization | `http://localhost:8000/oauth/authorize` |
+| Token and refresh | `http://localhost:8000/oauth/token` |
+| Discovery | `http://localhost:8000/.well-known/openid-configuration` |
+| Signing keys | `http://localhost:8000/.well-known/jwks.json` |
+| MCP | `http://localhost:8000/mcp` |
+
+The authorization page lets the test select `Demo Engineer`,
+`Demo Finance User`, or `Demo Administrator`. For unattended tests, append
+`test_user=engineer`, `test_user=finance`, or `test_user=admin` to the
+authorization request.
+
+The provider is deliberately not a production identity system. It does not
+authenticate a human, persist grants, support revocation, or preserve signing
+keys across restarts. Never expose it as a production authorization server.
+
+### Configure Foundry custom OAuth
+
+Create the MCP project connection with:
+
+| Field | Value |
+|---|---|
+| Client ID | `foundry-test-client` |
+| Client secret | Leave empty |
+| Auth URL | `https://<container-app-fqdn>/oauth/authorize` |
+| Token URL | `https://<container-app-fqdn>/oauth/token` |
+| Refresh URL | `https://<container-app-fqdn>/oauth/token` |
+| Scopes | `mcp.access offline_access` |
+
+After Foundry displays its generated OAuth redirect URL, add that exact URL to
+`FAKE_OAUTH_REDIRECT_URIS` and redeploy or update the Container App. The
+provider rejects every redirect URI that is not explicitly configured.
+
+Deploy a separate test instance:
+
+```powershell
+.\scripts\deploy-container-app.ps1 `
+  -ResourceGroup "rg-user-scoped-mcp-demo" `
+  -Location "westus3" `
+  -ContainerAppName "user-scoped-mcp-fake-oauth" `
+  -AuthMode fake_oauth `
+  -FakeOAuthIssuer "https://<expected-container-app-fqdn>" `
+  -FakeOAuthClientId "foundry-test-client" `
+  -FakeOAuthRedirectUris "<foundry-generated-redirect-url>" `
+  -RegistryName "<acr-name>" `
+  -ContainerAppsEnvironment "<container-apps-environment>"
+```
+
+The issuer must be the final external origin and must be supplied during the
+initial deployment. If an existing Container Apps environment is reused, its
+default domain is available from:
+
+```powershell
+az containerapp env show `
+  --resource-group "<resource-group>" `
+  --name "<environment-name>" `
+  --query properties.defaultDomain `
+  --output tsv
+```
+
+Providing `RegistryName` and `ContainerAppsEnvironment` uses an ACR build with
+log streaming disabled. This avoids a known Azure CLI Unicode log-streaming
+failure on Windows. Omit both parameters to use the simpler
+`az containerapp up` path.
+
+Use the same Toolbox prompt for each selected identity:
+
+> Investigate the largest current risk for my team and prepare a mitigation
+> plan.
+
+This mode proves Foundry's OAuth plumbing and per-user token isolation against
+a controlled provider. It does not prove that Microsoft Entra issued the token.
 
 ## Use an existing forwarded Entra JWT
 

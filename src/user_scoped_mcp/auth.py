@@ -5,6 +5,7 @@ import jwt
 from fastapi import HTTPException, Request, status
 
 from .config import Settings
+from .oauth_provider import get_fake_oauth_provider
 
 
 @dataclass(frozen=True)
@@ -128,8 +129,42 @@ def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
     )
 
 
+def _actor_from_fake_oauth_token(token: str, settings: Settings) -> Actor:
+    claims = get_fake_oauth_provider(settings).verify_access_token(token)
+    if claims.get("token_use") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The token is not an access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    scopes = frozenset(str(claims.get("scp", "")).split())
+    if settings.required_scope not in scopes:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing delegated scope: {settings.required_scope}",
+        )
+
+    object_id = str(claims["oid"])
+    roles: set[str] = set()
+    if object_id in settings.engineering_user_ids:
+        roles.add("Engineering")
+    if object_id in settings.finance_user_ids:
+        roles.add("Finance")
+    if object_id in settings.admin_user_ids:
+        roles.update({"Engineering", "Finance", "Demo.Admin"})
+
+    return Actor(
+        object_id=object_id,
+        display_name=str(claims.get("name") or claims["oid"]),
+        roles=frozenset(roles),
+        claims=claims,
+    )
+
+
 def authenticate(request: Request, settings: Settings) -> Actor:
     token = _bearer_token(request)
     if settings.auth_mode == "demo":
         return _actor_from_demo_token(token)
+    if settings.auth_mode == "fake_oauth":
+        return _actor_from_fake_oauth_token(token, settings)
     return _actor_from_entra_token(token, settings)

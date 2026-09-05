@@ -1,11 +1,16 @@
+import base64
+import hashlib
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 import jwt
+import pytest
 from fastapi.testclient import TestClient
 
 from user_scoped_mcp.app import app
 from user_scoped_mcp.auth import Actor, _actor_from_entra_token
-from user_scoped_mcp.config import Settings
+from user_scoped_mcp.config import Settings, get_settings
+from user_scoped_mcp.oauth_provider import get_fake_oauth_provider
 from user_scoped_mcp.tools import call_tool
 
 client = TestClient(app)
@@ -192,3 +197,169 @@ def test_entra_passthrough_maps_oid_without_dedicated_scope(monkeypatch):
     actor = _actor_from_entra_token("signed-jwt", settings)
     assert actor.object_id == "engineer-oid"
     assert actor.roles == frozenset({"Engineering"})
+
+
+@pytest.fixture
+def fake_oauth(monkeypatch):
+    values = {
+        "AUTH_MODE": "fake_oauth",
+        "FAKE_OAUTH_ISSUER": "http://testserver",
+        "FAKE_OAUTH_AUDIENCE": "test-mcp-audience",
+        "FAKE_OAUTH_CLIENT_ID": "test-public-client",
+        "FAKE_OAUTH_REDIRECT_URIS": "https://foundry.example/callback",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    get_settings.cache_clear()
+    get_fake_oauth_provider.cache_clear()
+    yield
+    get_settings.cache_clear()
+    get_fake_oauth_provider.cache_clear()
+
+
+def authorize_test_user(identity: str, *, verifier: str | None = None) -> str:
+    params = {
+        "response_type": "code",
+        "client_id": "test-public-client",
+        "redirect_uri": "https://foundry.example/callback",
+        "scope": "mcp.access offline_access",
+        "state": "state-123",
+        "test_user": identity,
+    }
+    if verifier is not None:
+        digest = hashlib.sha256(verifier.encode("ascii")).digest()
+        params["code_challenge"] = (
+            base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+        )
+        params["code_challenge_method"] = "S256"
+
+    response = client.get("/oauth/authorize", params=params, follow_redirects=False)
+    assert response.status_code == 302
+    query = parse_qs(urlparse(response.headers["location"]).query)
+    assert query["state"] == ["state-123"]
+    return query["code"][0]
+
+
+def exchange_code(code: str, *, verifier: str | None = None) -> dict:
+    form = {
+        "grant_type": "authorization_code",
+        "client_id": "test-public-client",
+        "redirect_uri": "https://foundry.example/callback",
+        "code": code,
+    }
+    if verifier is not None:
+        form["code_verifier"] = verifier
+    response = client.post("/oauth/token", data=form)
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_fake_oauth_authorization_code_drives_role_specific_manifest(fake_oauth):
+    verifier = "automation-test-verifier-with-sufficient-length"
+    engineer_token = exchange_code(
+        authorize_test_user("engineer", verifier=verifier),
+        verifier=verifier,
+    )["access_token"]
+    finance_token = exchange_code(authorize_test_user("finance"))["access_token"]
+
+    assert tool_names(engineer_token) == {
+        "get_current_user",
+        "search_service_incidents",
+        "get_deployment_status",
+        "create_incident_mitigation_plan",
+    }
+    assert tool_names(finance_token) == {
+        "get_current_user",
+        "search_budget_variances",
+        "get_cost_center_status",
+        "create_spend_mitigation_plan",
+    }
+
+
+def test_fake_oauth_refresh_token_preserves_identity(fake_oauth):
+    token_response = exchange_code(authorize_test_user("finance"))
+    response = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "refresh_token",
+            "client_id": "test-public-client",
+            "refresh_token": token_response["refresh_token"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert tool_names(response.json()["access_token"]) == {
+        "get_current_user",
+        "search_budget_variances",
+        "get_cost_center_status",
+        "create_spend_mitigation_plan",
+    }
+
+
+def test_fake_oauth_rejects_unregistered_redirect_uri(fake_oauth):
+    response = client.get(
+        "/oauth/authorize",
+        params={
+            "response_type": "code",
+            "client_id": "test-public-client",
+            "redirect_uri": "https://attacker.example/callback",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "redirect_uri is not allowed"
+
+
+def test_fake_oauth_authorization_code_is_single_use(fake_oauth):
+    code = authorize_test_user("engineer")
+    exchange_code(code)
+    response = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "client_id": "test-public-client",
+            "redirect_uri": "https://foundry.example/callback",
+            "code": code,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "invalid_grant"
+
+
+def test_fake_oauth_requires_mcp_scope(fake_oauth):
+    response = client.get(
+        "/oauth/authorize",
+        params={
+            "response_type": "code",
+            "client_id": "test-public-client",
+            "redirect_uri": "https://foundry.example/callback",
+            "scope": "offline_access",
+            "test_user": "engineer",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Required scope is missing: mcp.access"
+
+
+def test_fake_oauth_rejects_malformed_pkce_verifier(fake_oauth):
+    code = authorize_test_user(
+        "engineer",
+        verifier="automation-test-verifier-with-sufficient-length",
+    )
+    response = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "client_id": "test-public-client",
+            "redirect_uri": "https://foundry.example/callback",
+            "code": code,
+            "code_verifier": "not-ascii-\u00e9",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "invalid_grant"

@@ -1,12 +1,14 @@
 from typing import Any
+from urllib.parse import parse_qs
 
 import uvicorn
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .auth import authenticate
 from .config import get_settings
+from .oauth_provider import get_fake_oauth_provider
 from .tools import call_tool, visible_tools
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -33,6 +35,60 @@ def _error(request_id: Any, code: int, message: str) -> dict[str, Any]:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "healthy"}
+
+
+def _fake_oauth_provider():
+    settings = get_settings()
+    if settings.auth_mode != "fake_oauth":
+        raise StarletteHTTPException(status_code=404, detail="Not found")
+    return get_fake_oauth_provider(settings)
+
+
+@app.get("/.well-known/openid-configuration")
+async def oauth_discovery() -> dict[str, Any]:
+    return _fake_oauth_provider().discovery_document()
+
+
+@app.get("/.well-known/jwks.json")
+async def oauth_jwks() -> dict[str, Any]:
+    return _fake_oauth_provider().jwks_document()
+
+
+@app.get("/oauth/authorize")
+async def oauth_authorize(
+    response_type: str = Query(...),
+    client_id: str = Query(...),
+    redirect_uri: str = Query(...),
+    scope: str = Query("mcp.access offline_access"),
+    state: str | None = Query(None),
+    test_user: str | None = Query(None),
+    code_challenge: str | None = Query(None),
+    code_challenge_method: str | None = Query(None),
+) -> Response:
+    return _fake_oauth_provider().authorize(
+        response_type=response_type,
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope=scope,
+        state=state,
+        identity_key=test_user,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+    )
+
+
+@app.post("/oauth/token")
+async def oauth_token(request: Request) -> JSONResponse:
+    content_type = request.headers.get("content-type", "")
+    if "application/x-www-form-urlencoded" not in content_type:
+        raise StarletteHTTPException(
+            status_code=415,
+            detail="Content-Type must be application/x-www-form-urlencoded",
+        )
+    body = (await request.body()).decode("utf-8")
+    parsed = parse_qs(body, keep_blank_values=True)
+    form = {key: values[-1] for key, values in parsed.items()}
+    return JSONResponse(_fake_oauth_provider().exchange_token(form))
 
 
 @app.post("/mcp")
