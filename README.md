@@ -11,6 +11,9 @@ endpoint while different signed-in users receive different successful
 > user-specific discovery path. See
 > [Why native Entra passthrough is blocked](docs/implementation-blocker.md).
 
+For end-to-end configuration, use the
+**[fake OAuth and Foundry setup guide](docs/setup-guide.md)**.
+
 The server supports four authentication modes:
 
 - `demo`: predefined bearer tokens; no Entra registration is required.
