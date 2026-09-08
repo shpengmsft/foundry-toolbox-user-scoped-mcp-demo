@@ -16,11 +16,18 @@ flowchart LR
     A --> O[GitHub OAuth]
     B --> O
     O -->|GitHub access token| T[One Foundry Toolbox]
-    T --> M[Demo MCP server]
-    M -->|GET /user| G[GitHub API]
-    G -->|Numeric GitHub user ID| R{Role mapping}
-    R -->|User A| E[Engineering tools]
-    R -->|User B| F[Finance tools]
+    T --> V
+
+    subgraph M[Demo MCP server]
+        direction LR
+        V[Receive bearer token]
+        R{Map numeric user ID to role}
+        R -->|User A| E[Engineering tools]
+        R -->|User B| F[Finance tools]
+    end
+
+    V -->|GET /user| G[GitHub API]
+    G -->|User profile with numeric ID| R
 ```
 
 The MCP calls `https://api.github.com/user`, maps the immutable numeric GitHub
