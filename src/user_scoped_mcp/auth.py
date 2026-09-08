@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 import jwt
 from fastapi import HTTPException, Request, status
 
@@ -61,6 +62,17 @@ def _actor_from_demo_token(token: str) -> Actor:
     return actor
 
 
+def _roles_for_object_id(object_id: str, settings: Settings) -> frozenset[str]:
+    roles: set[str] = set()
+    if object_id in settings.engineering_user_ids:
+        roles.add("Engineering")
+    if object_id in settings.finance_user_ids:
+        roles.add("Finance")
+    if object_id in settings.admin_user_ids:
+        roles.update({"Engineering", "Finance", "Demo.Admin"})
+    return frozenset(roles)
+
+
 def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
     assert settings.tenant_id is not None
 
@@ -109,14 +121,6 @@ def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
         )
 
     object_id = str(claims["oid"])
-    roles: set[str] = set()
-    if object_id in settings.engineering_user_ids:
-        roles.add("Engineering")
-    if object_id in settings.finance_user_ids:
-        roles.add("Finance")
-    if object_id in settings.admin_user_ids:
-        roles.update({"Engineering", "Finance", "Demo.Admin"})
-
     return Actor(
         object_id=object_id,
         display_name=str(
@@ -124,7 +128,7 @@ def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
             or claims.get("preferred_username")
             or claims["oid"]
         ),
-        roles=frozenset(roles),
+        roles=_roles_for_object_id(object_id, settings),
         claims=claims,
     )
 
@@ -145,26 +149,86 @@ def _actor_from_fake_oauth_token(token: str, settings: Settings) -> Actor:
         )
 
     object_id = str(claims["oid"])
-    roles: set[str] = set()
-    if object_id in settings.engineering_user_ids:
-        roles.add("Engineering")
-    if object_id in settings.finance_user_ids:
-        roles.add("Finance")
-    if object_id in settings.admin_user_ids:
-        roles.update({"Engineering", "Finance", "Demo.Admin"})
-
     return Actor(
         object_id=object_id,
         display_name=str(claims.get("name") or claims["oid"]),
-        roles=frozenset(roles),
+        roles=_roles_for_object_id(object_id, settings),
         claims=claims,
     )
 
 
-def authenticate(request: Request, settings: Settings) -> Actor:
+async def _actor_from_github_token(token: str, settings: Settings) -> Actor:
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "foundry-toolbox-user-scoped-mcp-demo",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=settings.github_timeout_seconds) as client:
+            response = await client.get(
+                f"{settings.github_api_url}/user",
+                headers=headers,
+            )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="GitHub identity lookup timed out",
+        ) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="GitHub identity lookup failed",
+        ) from exc
+
+    if response.status_code in {401, 403}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The GitHub access token is invalid",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"GitHub identity lookup returned HTTP {response.status_code}",
+        )
+
+    try:
+        user = response.json()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="GitHub identity lookup returned invalid JSON",
+        ) from exc
+
+    raw_user_id = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(raw_user_id, int) or raw_user_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="GitHub identity response is missing a valid user ID",
+        )
+
+    object_id = str(raw_user_id)
+    login = user.get("login")
+    display_name = login if isinstance(login, str) and login else object_id
+    return Actor(
+        object_id=object_id,
+        display_name=display_name,
+        roles=_roles_for_object_id(object_id, settings),
+        claims={
+            "auth_mode": "github",
+            "github_user_id": raw_user_id,
+            "github_login": display_name,
+        },
+    )
+
+
+async def authenticate(request: Request, settings: Settings) -> Actor:
     token = _bearer_token(request)
     if settings.auth_mode == "demo":
         return _actor_from_demo_token(token)
     if settings.auth_mode == "fake_oauth":
         return _actor_from_fake_oauth_token(token, settings)
+    if settings.auth_mode == "github":
+        return await _actor_from_github_token(token, settings)
     return _actor_from_entra_token(token, settings)

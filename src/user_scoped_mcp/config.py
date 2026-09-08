@@ -22,6 +22,8 @@ class Settings:
     )
     fake_oauth_access_token_seconds: int = 900
     fake_oauth_refresh_token_seconds: int = 28800
+    github_api_url: str = "https://api.github.com"
+    github_timeout_seconds: float = 10.0
 
 
 def _csv_set(name: str, default: str = "") -> frozenset[str]:
@@ -32,9 +34,16 @@ def _csv_set(name: str, default: str = "") -> frozenset[str]:
 @lru_cache
 def get_settings() -> Settings:
     auth_mode = os.getenv("AUTH_MODE", "demo").lower()
-    if auth_mode not in {"demo", "entra", "entra_passthrough", "fake_oauth"}:
+    if auth_mode not in {
+        "demo",
+        "entra",
+        "entra_passthrough",
+        "fake_oauth",
+        "github",
+    }:
         raise ValueError(
-            "AUTH_MODE must be 'demo', 'entra', 'entra_passthrough', or 'fake_oauth'"
+            "AUTH_MODE must be 'demo', 'entra', 'entra_passthrough', "
+            "'fake_oauth', or 'github'"
         )
 
     tenant_id = os.getenv("ENTRA_TENANT_ID")
@@ -87,4 +96,9 @@ def get_settings() -> Settings:
         fake_oauth_refresh_token_seconds=int(
             os.getenv("FAKE_OAUTH_REFRESH_TOKEN_SECONDS", "28800")
         ),
+        github_api_url=os.getenv(
+            "GITHUB_API_URL",
+            "https://api.github.com",
+        ).rstrip("/"),
+        github_timeout_seconds=float(os.getenv("GITHUB_TIMEOUT_SECONDS", "10")),
     )

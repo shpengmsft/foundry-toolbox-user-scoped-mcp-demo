@@ -132,6 +132,7 @@ def _current_user(actor: Actor, _: dict[str, Any]) -> dict[str, Any]:
         "displayName": actor.display_name,
         "role": role,
         "effectiveRoles": sorted(actor.roles),
+        "identityProvider": actor.claims.get("auth_mode"),
     }
 
 
@@ -139,11 +140,12 @@ def _search_records(records: tuple[dict[str, Any], ...], query: str) -> list[dic
     words = query.lower().split()
     if not words:
         return list(records)
-    return [
+    matches = [
         record
         for record in records
         if all(word in json.dumps(record).lower() for word in words)
     ]
+    return matches or list(records)
 
 
 def _search_service_incidents(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -214,7 +216,7 @@ TOOLS = (
     ToolDefinition(
         name="get_current_user",
         description=(
-            "Show the signed-in user's JWT object ID, display name, and assigned demo role."
+            "Show the signed-in user's immutable ID, display name, and assigned demo role."
         ),
         input_schema=EMPTY_INPUT_SCHEMA,
         required_role=None,

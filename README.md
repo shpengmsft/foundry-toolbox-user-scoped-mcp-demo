@@ -4,21 +4,20 @@ This sample demonstrates one Azure AI Foundry Toolbox using the same remote MCP
 endpoint while different signed-in users receive different successful
 `tools/list` responses.
 
-> **Current limitation:** native Entra OAuth identity passthrough remains
-> blocked in the test tenant by its client-secret policy. This repository now
-> includes a demo-only OAuth provider so automation can still exercise the
-> complete Foundry OAuth redirect, code exchange, refresh, bearer-token, and
-> user-specific discovery path. See
-> [Why native Entra passthrough is blocked](docs/implementation-blocker.md).
+The recommended interactive demo uses a GitHub OAuth App. Foundry forwards the
+opaque GitHub access token, and this MCP calls `GET https://api.github.com/user`
+to map the immutable numeric GitHub user ID to a role-specific tool catalog.
 
 For end-to-end configuration, use the
-**[fake OAuth and Foundry setup guide](docs/setup-guide.md)**.
+**[GitHub OAuth and Foundry setup guide](docs/setup-guide.md)**.
 
-The server supports four authentication modes:
+The server supports five authentication modes:
 
 - `demo`: predefined bearer tokens; no Entra registration is required.
 - `fake_oauth`: test-only OAuth authorization-code provider with deterministic
   Engineer, Finance, and Administrator identities.
+- `github`: validates an opaque GitHub OAuth token through the GitHub `/user`
+  API and maps the numeric user ID without using OAuth scopes as roles.
 - `entra_passthrough`: validates a Toolbox-forwarded Entra JWT and maps its
   existing `oid` claim; no MCP-specific app registration is required.
 - `entra`: validates a delegated Microsoft Entra access token and maps configured

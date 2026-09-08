@@ -98,7 +98,7 @@ async def mcp(request: Request) -> Response:
     if origin is not None and origin not in settings.allowed_origins:
         raise StarletteHTTPException(status_code=403, detail="Origin is not allowed")
 
-    actor = authenticate(request, settings)
+    actor = await authenticate(request, settings)
     try:
         payload = await request.json()
     except ValueError:

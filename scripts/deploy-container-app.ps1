@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory)]
     [string]$ContainerAppName,
 
-    [ValidateSet("demo", "entra", "entra_passthrough", "fake_oauth")]
+    [ValidateSet("demo", "entra", "entra_passthrough", "fake_oauth", "github")]
     [string]$AuthMode = "entra",
 
     [string]$TenantId,
@@ -82,6 +82,17 @@ elseif ($AuthMode -eq "fake_oauth") {
         "FAKE_OAUTH_REDIRECT_URIS=$FakeOAuthRedirectUris",
         "FAKE_OAUTH_AUDIENCE=$FakeOAuthAudience"
     )
+}
+elseif ($AuthMode -eq "github") {
+    if ($EngineerUserObjectIds) {
+        $environmentVariables += "ENGINEERING_USER_IDS=$EngineerUserObjectIds"
+    }
+    if ($FinanceUserObjectIds) {
+        $environmentVariables += "FINANCE_USER_IDS=$FinanceUserObjectIds"
+    }
+    if ($AdminUserObjectIds) {
+        $environmentVariables += "ADMIN_USER_IDS=$AdminUserObjectIds"
+    }
 }
 
 if ($RegistryName) {

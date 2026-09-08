@@ -7,6 +7,7 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
+from user_scoped_mcp import auth
 from user_scoped_mcp.app import app
 from user_scoped_mcp.auth import Actor, _actor_from_entra_token
 from user_scoped_mcp.config import Settings, get_settings
@@ -125,6 +126,57 @@ def test_finance_workflow_uses_deterministic_inputs():
     ).json()["result"]["structuredContent"]
     assert plan["found"] is True
     assert len(plan["plan"]) == 3
+
+
+def test_broad_risk_query_returns_current_engineering_records():
+    search = request(
+        "tools/call",
+        "demo-engineer",
+        {
+            "name": "search_service_incidents",
+            "arguments": {"query": "largest current risk for my team"},
+        },
+    ).json()["result"]["structuredContent"]
+
+    assert [item["id"] for item in search["incidents"]] == ["ENG-1042", "ENG-1048"]
+
+
+def test_github_user_id_drives_manifest_and_ignores_scopes(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"id": 83468449, "login": "shpengmsft"}
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            assert kwargs["timeout"] == 10.0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def get(self, url, headers):
+            assert url == "https://api.github.com/user"
+            assert headers["Authorization"] == "Bearer opaque-github-token"
+            return FakeResponse()
+
+    monkeypatch.setenv("AUTH_MODE", "github")
+    monkeypatch.setenv("ENGINEERING_USER_IDS", "83468449")
+    monkeypatch.setattr(auth.httpx, "AsyncClient", FakeAsyncClient)
+    get_settings.cache_clear()
+    try:
+        assert tool_names("opaque-github-token") == {
+            "get_current_user",
+            "search_service_incidents",
+            "get_deployment_status",
+            "create_incident_mitigation_plan",
+        }
+    finally:
+        get_settings.cache_clear()
 
 
 def test_health_is_anonymous():
