@@ -7,14 +7,20 @@ different tools for different signed-in GitHub users.
 
 ```mermaid
 flowchart LR
-    A[Foundry User A] --> O[GitHub OAuth]
-    B[Foundry User B] --> O
+    subgraph U[Foundry users]
+        direction TB
+        A[User A]
+        B[User B]
+    end
+
+    A --> O[GitHub OAuth]
+    B --> O
     O -->|GitHub access token| T[One Foundry Toolbox]
     T --> M[Demo MCP server]
     M -->|GET /user| G[GitHub API]
-    G -->|Numeric GitHub user ID| M
-    M -->|Engineering tools| A
-    M -->|Finance tools| B
+    G -->|Numeric GitHub user ID| R{Role mapping}
+    R -->|User A| E[Engineering tools]
+    R -->|User B| F[Finance tools]
 ```
 
 The MCP calls `https://api.github.com/user`, maps the immutable numeric GitHub
