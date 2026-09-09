@@ -86,34 +86,32 @@ Repeat `az login` and GitHub OAuth authorization under the second user's own
 accounts before running their comparison. Do not reuse the first user's Azure
 or GitHub session.
 
-## Quick validation
+## Validation steps
 
-Use the same Toolbox and the same business question for both users:
+Both users run the same script:
 
-```text
-What is the largest current risk for my team?
+```powershell
+.\.venv\Scripts\python.exe .\tests\user_scoped_toolbox.py
 ```
 
-Do not mention Tool Search in the agent prompt. With Tool Search enabled on the
-Toolbox, discovery happens automatically.
+The script asks `What is the largest current risk for my team?`. Do not mention
+Tool Search in the prompt; Toolbox performs discovery automatically.
 
 1. User A signs in to Foundry and authorizes the connection with their GitHub
    account.
-2. Start a new agent session and ask the question above.
-3. Save the tools returned by Tool Search from the execution trace.
-4. User B signs in to Foundry and authorizes the same connection with their own
+2. User A runs the script and saves the output.
+3. User B signs in to Foundry and authorizes the same connection with their own
    GitHub account.
-5. Start a new agent session and ask the exact same question.
-6. Save the tools returned by Tool Search from the execution trace.
-7. Confirm that each result contains the shared identity tool and only that
-   user's role-specific risk tool.
+4. User B runs the exact same script and saves the output.
+5. Compare the selected tool and result. Use the execution traces when the Tool
+   Search candidate list is also required.
 
-Expected Tool Search results:
+Expected comparison:
 
-| Signed-in role | Tools returned for the same business question |
-|---|---|
-| Engineering | `search_service_incidents`, `get_current_user` |
-| Finance | `search_budget_variances`, `get_current_user` |
+| Signed-in role | Tool Search results | Tool called |
+|---|---|---|
+| Engineering | `search_service_incidents`, `get_current_user` | `search_service_incidents` |
+| Finance | `search_budget_variances`, `get_current_user` | `search_budget_variances` |
 
 `search_budget_variances` was absent from the Engineering result.
 `search_service_incidents` was absent from the Finance result. Result order may
@@ -122,18 +120,6 @@ vary; ranking scores were not included in the response.
 This is the direct answer to the validation question: the Toolbox, version, and
 business question are identical, but Tool Search returns different tools
 because the authenticated users receive different MCP catalogs.
-
-### Validate invocation as well
-
-After comparing Tool Search results, each user can run the same end-to-end
-script:
-
-```powershell
-.\.venv\Scripts\python.exe .\tests\user_scoped_toolbox.py
-```
-
-No role argument or user identifier is supplied to the script. It identifies
-the current user and invokes the role-specific tool selected for that user.
 
 ## Observed results
 
