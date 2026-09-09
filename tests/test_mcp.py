@@ -1,12 +1,15 @@
 import base64
 import hashlib
 import logging
+import subprocess
+import sys
+import warnings
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 import jwt
 import pytest
-from fastapi.testclient import TestClient
+from starlette.exceptions import StarletteDeprecationWarning
 
 from user_scoped_mcp import auth
 from user_scoped_mcp.app import app
@@ -14,6 +17,10 @@ from user_scoped_mcp.auth import Actor, _actor_from_entra_token
 from user_scoped_mcp.config import Settings, get_settings
 from user_scoped_mcp.oauth_provider import get_fake_oauth_provider
 from user_scoped_mcp.tools import call_tool
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", StarletteDeprecationWarning)
+    from fastapi.testclient import TestClient  # noqa: E402
 
 client = TestClient(app)
 
@@ -479,3 +486,9 @@ def test_fake_oauth_rejects_malformed_pkce_verifier(fake_oauth):
 
     assert response.status_code == 400
     assert response.json()["detail"]["error"] == "invalid_grant"
+
+
+if __name__ == "__main__":
+    raise SystemExit(
+        subprocess.call([sys.executable, "-m", "pytest", __file__, "-q"])
+    )
