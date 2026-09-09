@@ -47,8 +47,7 @@ git clone https://github.com/shpengmsft/foundry-toolbox-user-scoped-mcp-demo.git
 cd foundry-toolbox-user-scoped-mcp-demo
 
 python -m venv .venv
-.\.venv\Scripts\python -m pip install -e ".[dev]"
-.\.venv\Scripts\python -m pytest -q
+.\.venv\Scripts\python -m pip install -e .
 ```
 
 Find User A's GitHub numeric user ID:

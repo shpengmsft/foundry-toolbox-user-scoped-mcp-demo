@@ -40,9 +40,6 @@ Role mapping happens in the demo MCP, not in GitHub or the GitHub API.
 Do not copy and run only `user_scoped_toolbox.py`. The script depends on this
 repository and its optional Toolbox test packages.
 
-`tests/test_mcp.py` is the maintainer test suite for the demo MCP server.
-Customers do not need to run it for this validation.
-
 Before running the validation:
 
 - The demo MCP must be deployed and reachable.

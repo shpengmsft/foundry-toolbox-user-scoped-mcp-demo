@@ -18,7 +18,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.4,<9",
   "ruff>=0.12,<1",
 ]
 toolbox-test = [
@@ -32,9 +31,6 @@ user-scoped-mcp = "user_scoped_mcp.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/user_scoped_mcp"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
