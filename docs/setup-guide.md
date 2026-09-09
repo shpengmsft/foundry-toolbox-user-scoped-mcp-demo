@@ -194,18 +194,9 @@ environment:
 ```powershell
 python -m pip install -e ".[toolbox-test]"
 python .\tests\user_scoped_toolbox.py
-python .\tests\user_scoped_toolbox.py --expected-role finance
 ```
 
-The no-argument command defaults to Engineering. Run the Finance command under
-the coworker's Foundry and GitHub user session. Alternatively set
-`$env:EXPECTED_ROLE = "finance"` before launching the script from a debugger.
-The script supports both Toolbox discovery modes:
-
-- Direct mode exposes the role-specific MCP tools in the initial manifest.
-- Progressive-disclosure mode initially exposes only `tool_search` and
-  `call_tool`; the script then verifies that Tool Search selects and calls the
-  expected role-specific tool.
-
-The script fails if the other role's tool appears in the manifest, Tool Search
-result, or call evidence.
+Run this exact same command once as User A and once as User B. The script
+identifies the signed-in user, asks the same risk question, and prints the
+role-specific tool selected through the same Toolbox. It works with both direct
+tool discovery and Toolbox progressive disclosure.
