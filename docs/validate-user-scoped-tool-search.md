@@ -94,6 +94,9 @@ Use the same Toolbox and the same business question for both users:
 What is the largest current risk for my team?
 ```
 
+Do not mention Tool Search in the agent prompt. With Tool Search enabled on the
+Toolbox, discovery happens automatically.
+
 1. User A signs in to Foundry and authorizes the connection with their GitHub
    account.
 2. Start a new agent session and ask the question above.
@@ -131,10 +134,6 @@ script:
 
 No role argument or user identifier is supplied to the script. It identifies
 the current user and invokes the role-specific tool selected for that user.
-
-The end-to-end script may call a role tool directly when Toolbox has already
-exposed or pinned that tool. Use the execution-trace comparison above when the
-goal is specifically to validate Tool Search output.
 
 ## Observed results
 
