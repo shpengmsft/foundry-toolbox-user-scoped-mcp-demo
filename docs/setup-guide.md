@@ -137,24 +137,22 @@ System prompt:
 
 ```text
 Use the available Toolbox tools to investigate the user's current team risk.
-Always use the role-specific search tool first. If a risk is found, use the
-matching mitigation-plan tool. Use only tool-returned data. Respond with no
-more than six bullets: the highest-priority risk and the mitigation steps.
-Do not add recommendations or ask a follow-up question. For incidents, a lower
-severity number means higher priority.
+Use the role-specific search tool. Use only tool-returned data and respond in
+no more than three bullets. Do not call a mitigation-plan tool unless the user
+explicitly requests a plan. Do not add recommendations or ask a follow-up
+question. For incidents, a lower severity number means higher priority.
 ```
 
 User query:
 
 ```text
-Investigate the largest current risk for my team and prepare a mitigation plan.
+What is the largest current risk for my team?
 ```
 
 Expected calls:
 
 ```text
 search_service_incidents
-create_incident_mitigation_plan
 ```
 
 ## 8. Test User B
@@ -167,7 +165,6 @@ Expected calls:
 
 ```text
 search_budget_variances
-create_spend_mitigation_plan
 ```
 
 ## 9. Verify that each user received different tools

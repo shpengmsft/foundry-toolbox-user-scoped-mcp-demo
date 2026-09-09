@@ -53,7 +53,8 @@ def test_initialize_requests_concise_grounded_output():
     response = request("initialize", "demo-engineer")
     instructions = response.json()["result"]["instructions"]
 
-    assert "no more than six bullets" in instructions
+    assert "no more than three bullets" in instructions
+    assert "only when the user explicitly requests a plan" in instructions
     assert "Do not add recommendations" in instructions
     assert "lower severity number means higher priority" in instructions
 

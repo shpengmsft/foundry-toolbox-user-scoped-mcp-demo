@@ -129,11 +129,11 @@ async def mcp(request: Request) -> Response:
                     "protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {"tools": {"listChanged": False}},
                     "instructions": (
-                        "Use only data returned by these tools. Keep the final answer to no "
-                        "more than six bullets: identify the highest-priority record and list "
-                        "the returned mitigation steps. Do not add recommendations or ask a "
-                        "follow-up question. For incidents, a lower severity number means "
-                        "higher priority."
+                        "Use only data returned by these tools. For a risk question, call the "
+                        "role-specific search tool and answer in no more than three bullets. "
+                        "Call a mitigation-plan tool only when the user explicitly requests a "
+                        "plan. Do not add recommendations or ask a follow-up question. For "
+                        "incidents, a lower severity number means higher priority."
                     ),
                     "serverInfo": {
                         "name": "user-scoped-mcp-demo",
