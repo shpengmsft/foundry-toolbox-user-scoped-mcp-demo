@@ -35,6 +35,60 @@ User -> Foundry Toolbox -> GitHub OAuth token -> Demo MCP
 
 Role mapping happens in the demo MCP, not in GitHub or the GitHub API.
 
+## Prerequisites
+
+Do not copy and run only `user_scoped_toolbox.py`. The script depends on this
+repository and its optional Toolbox test packages.
+
+`tests/test_mcp.py` is the maintainer test suite for the demo MCP server.
+Customers do not need to run it for this validation.
+
+Before running the validation:
+
+- The demo MCP must be deployed and reachable.
+- The Foundry project must contain the GitHub OAuth connection.
+- `UserScopedToolbox:1` must be published with the demo MCP and Tool Search
+  enabled.
+- Both users must have access to the Foundry project and model deployment.
+- Each user must authorize the OAuth connection with their own GitHub account.
+- Python 3.11 or later and Azure CLI must be installed.
+
+For complete service setup, follow
+[GitHub OAuth and Foundry setup](setup-guide.md) first.
+
+Clone the repository and install the required packages:
+
+```powershell
+git clone https://github.com/shpengmsft/foundry-toolbox-user-scoped-mcp-demo.git
+cd .\foundry-toolbox-user-scoped-mcp-demo
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[toolbox-test]"
+```
+
+Sign in to Azure as the Foundry user who will run the test:
+
+```powershell
+az login
+```
+
+The script uses `DefaultAzureCredential`, so the active Azure identity must
+have access to the configured Foundry project.
+
+The repository defaults target the published demo. For another project or
+Toolbox, set these values before running:
+
+```powershell
+$env:FOUNDRY_PROJECT_ENDPOINT = "https://<resource>.services.ai.azure.com/api/projects/<project>"
+$env:FOUNDRY_TOOLBOX_NAME = "UserScopedToolbox"
+$env:FOUNDRY_TOOLBOX_VERSION = "1"
+$env:FOUNDRY_MODEL_DEPLOYMENT = "gpt-5"
+```
+
+Repeat `az login` and GitHub OAuth authorization under the second user's own
+accounts before running their comparison. Do not reuse the first user's Azure
+or GitHub session.
+
 ## Quick validation
 
 Use the same Toolbox and the same Tool Search query for both users:
@@ -81,7 +135,7 @@ After comparing Tool Search results, each user can run the same end-to-end
 script:
 
 ```powershell
-python .\tests\user_scoped_toolbox.py
+.\.venv\Scripts\python.exe .\tests\user_scoped_toolbox.py
 ```
 
 No role argument or user identifier is supplied to the script. It identifies
