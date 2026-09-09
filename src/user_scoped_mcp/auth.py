@@ -73,6 +73,17 @@ def _roles_for_object_id(object_id: str, settings: Settings) -> frozenset[str]:
     return frozenset(roles)
 
 
+def _github_roles_for_object_id(object_id: str, settings: Settings) -> frozenset[str]:
+    configured_roles = _roles_for_object_id(object_id, settings)
+    if configured_roles:
+        return configured_roles
+    if settings.github_default_role == "engineering":
+        return frozenset({"Engineering"})
+    if settings.github_default_role == "finance":
+        return frozenset({"Finance"})
+    return frozenset()
+
+
 def _actor_from_entra_token(token: str, settings: Settings) -> Actor:
     assert settings.tenant_id is not None
 
@@ -214,7 +225,7 @@ async def _actor_from_github_token(token: str, settings: Settings) -> Actor:
     return Actor(
         object_id=object_id,
         display_name=display_name,
-        roles=_roles_for_object_id(object_id, settings),
+        roles=_github_roles_for_object_id(object_id, settings),
         claims={
             "auth_mode": "github",
             "github_user_id": raw_user_id,

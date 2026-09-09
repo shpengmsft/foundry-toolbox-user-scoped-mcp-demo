@@ -150,7 +150,11 @@ def _search_records(records: tuple[dict[str, Any], ...], query: str) -> list[dic
 
 def _search_service_incidents(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:
     query = str(arguments.get("query", "")).strip()
-    return {"query": query, "incidents": _search_records(SERVICE_INCIDENTS, query)}
+    return {
+        "query": query,
+        "severityConvention": "Lower number means higher severity.",
+        "incidents": _search_records(SERVICE_INCIDENTS, query),
+    }
 
 
 def _get_deployment_status(_: Actor, arguments: dict[str, Any]) -> dict[str, Any]:

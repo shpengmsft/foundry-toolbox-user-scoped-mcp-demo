@@ -30,15 +30,15 @@ flowchart LR
     G -->|User profile with numeric ID| R
 ```
 
-The MCP calls `https://api.github.com/user`, maps the immutable numeric GitHub
-user ID to a role, and filters both `tools/list` and `tools/call`. OAuth scopes
-are not used to select the role or tool catalog.
+The MCP calls `https://api.github.com/user`, maps User A's immutable numeric
+GitHub user ID to Engineering, and assigns every other valid GitHub user to
+Finance. It filters both `tools/list` and `tools/call`. OAuth scopes are not
+used to select the role or tool catalog.
 
 | User | Role-specific tools |
 |---|---|
 | User A / Engineering | `search_service_incidents`, `get_deployment_status`, `create_incident_mitigation_plan` |
-| User B / Finance | `search_budget_variances`, `get_cost_center_status`, `create_spend_mitigation_plan` |
-| Unconfigured user | Only `get_current_user` |
+| Any other valid GitHub user / Finance | `search_budget_variances`, `get_cost_center_status`, `create_spend_mitigation_plan` |
 
 ## 2. Build and deploy the demo MCP
 
@@ -51,12 +51,10 @@ python -m venv .venv
 .\.venv\Scripts\python -m pytest -q
 ```
 
-Find both GitHub numeric user IDs:
+Find User A's GitHub numeric user ID:
 
 ```powershell
 Invoke-RestMethod "https://api.github.com/users/<user-a-login>" |
-  Select-Object id, login
-Invoke-RestMethod "https://api.github.com/users/<user-b-login>" |
   Select-Object id, login
 ```
 
@@ -69,7 +67,7 @@ Deploy:
   -ContainerAppName "shpeng-user-scoped-mcp-demo" `
   -AuthMode github `
   -EngineerUserObjectIds "<user-a-github-numeric-id>" `
-  -FinanceUserObjectIds "<user-b-github-numeric-id>" `
+  -GitHubDefaultRole finance `
   -RegistryName "ca6ef7d870dbacr" `
   -ContainerAppsEnvironment "mcpdiag-shpeng-aca-env" `
   -ImageTag "github-oauth-demo"
@@ -140,7 +138,10 @@ System prompt:
 ```text
 Use the available Toolbox tools to investigate the user's current team risk.
 Always use the role-specific search tool first. If a risk is found, use the
-matching mitigation-plan tool. Do not invent tool results.
+matching mitigation-plan tool. Use only tool-returned data. Respond with no
+more than six bullets: the highest-priority risk and the mitigation steps.
+Do not add recommendations or ask a follow-up question. For incidents, a lower
+severity number means higher priority.
 ```
 
 User query:
@@ -158,8 +159,9 @@ create_incident_mitigation_plan
 
 ## 8. Test User B
 
-Use a separate browser profile signed in to Foundry as User B and GitHub as the
-account mapped to Finance. Use the same system prompt and user query.
+Use a separate browser profile signed in to Foundry as User B and GitHub as any
+other valid GitHub account. No User B ID configuration is required. Use the
+same system prompt and user query.
 
 Expected calls:
 

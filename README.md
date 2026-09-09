@@ -17,7 +17,9 @@ The server supports five authentication modes:
 - `fake_oauth`: test-only OAuth authorization-code provider with deterministic
   Engineer, Finance, and Administrator identities.
 - `github`: validates an opaque GitHub OAuth token through the GitHub `/user`
-  API and maps the numeric user ID without using OAuth scopes as roles.
+  API. Explicitly mapped users keep their configured roles; other valid GitHub
+  users receive `GITHUB_DEFAULT_ROLE` (`finance` by default). OAuth scopes are
+  not used as roles.
 - `entra_passthrough`: validates a Toolbox-forwarded Entra JWT and maps its
   existing `oid` claim; no MCP-specific app registration is required.
 - `entra`: validates a delegated Microsoft Entra access token and maps configured

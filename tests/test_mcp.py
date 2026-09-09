@@ -49,6 +49,15 @@ def test_engineer_and_finance_receive_different_manifests():
     }
 
 
+def test_initialize_requests_concise_grounded_output():
+    response = request("initialize", "demo-engineer")
+    instructions = response.json()["result"]["instructions"]
+
+    assert "no more than six bullets" in instructions
+    assert "Do not add recommendations" in instructions
+    assert "lower severity number means higher priority" in instructions
+
+
 def test_admin_receives_all_tools():
     assert tool_names("demo-admin") == {
         "get_current_user",
@@ -139,6 +148,7 @@ def test_broad_risk_query_returns_current_engineering_records():
     ).json()["result"]["structuredContent"]
 
     assert [item["id"] for item in search["incidents"]] == ["ENG-1042", "ENG-1048"]
+    assert search["severityConvention"] == "Lower number means higher severity."
 
 
 def test_github_user_id_drives_manifest_and_ignores_scopes(monkeypatch):
@@ -174,6 +184,44 @@ def test_github_user_id_drives_manifest_and_ignores_scopes(monkeypatch):
             "search_service_incidents",
             "get_deployment_status",
             "create_incident_mitigation_plan",
+        }
+    finally:
+        get_settings.cache_clear()
+
+
+def test_unmapped_github_user_receives_default_finance_manifest(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"id": 99999999, "login": "second-user"}
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def get(self, url, headers):
+            return FakeResponse()
+
+    monkeypatch.setenv("AUTH_MODE", "github")
+    monkeypatch.setenv("ENGINEERING_USER_IDS", "83468449")
+    monkeypatch.setenv("GITHUB_DEFAULT_ROLE", "finance")
+    monkeypatch.delenv("FINANCE_USER_IDS", raising=False)
+    monkeypatch.setattr(auth.httpx, "AsyncClient", FakeAsyncClient)
+    get_settings.cache_clear()
+    try:
+        assert tool_names("second-opaque-github-token") == {
+            "get_current_user",
+            "search_budget_variances",
+            "get_cost_center_status",
+            "create_spend_mitigation_plan",
         }
     finally:
         get_settings.cache_clear()

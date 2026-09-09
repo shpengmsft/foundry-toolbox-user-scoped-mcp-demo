@@ -24,6 +24,7 @@ class Settings:
     fake_oauth_refresh_token_seconds: int = 28800
     github_api_url: str = "https://api.github.com"
     github_timeout_seconds: float = 10.0
+    github_default_role: str = "finance"
 
 
 def _csv_set(name: str, default: str = "") -> frozenset[str]:
@@ -52,6 +53,12 @@ def get_settings() -> Settings:
         raise ValueError("ENTRA_TENANT_ID is required for Entra authentication")
     if auth_mode == "entra" and not audience:
         raise ValueError("ENTRA_TENANT_ID and ENTRA_AUDIENCE are required in entra mode")
+
+    github_default_role = os.getenv("GITHUB_DEFAULT_ROLE", "finance").lower()
+    if github_default_role not in {"engineering", "finance", "unassigned"}:
+        raise ValueError(
+            "GITHUB_DEFAULT_ROLE must be 'engineering', 'finance', or 'unassigned'"
+        )
 
     default_engineers = ""
     default_finance = ""
@@ -101,4 +108,5 @@ def get_settings() -> Settings:
             "https://api.github.com",
         ).rstrip("/"),
         github_timeout_seconds=float(os.getenv("GITHUB_TIMEOUT_SECONDS", "10")),
+        github_default_role=github_default_role,
     )

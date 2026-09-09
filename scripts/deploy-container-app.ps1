@@ -20,6 +20,8 @@ param(
     [string]$FakeOAuthRedirectUris = "http://localhost:8400/callback",
     [string]$FakeOAuthAudience = "user-scoped-mcp-demo",
     [string]$FakeOAuthIssuer,
+    [ValidateSet("engineering", "finance", "unassigned")]
+    [string]$GitHubDefaultRole = "finance",
     [string]$RegistryName,
     [string]$ContainerAppsEnvironment,
     [string]$ImageTag = "latest"
@@ -84,6 +86,7 @@ elseif ($AuthMode -eq "fake_oauth") {
     )
 }
 elseif ($AuthMode -eq "github") {
+    $environmentVariables += "GITHUB_DEFAULT_ROLE=$GitHubDefaultRole"
     if ($EngineerUserObjectIds) {
         $environmentVariables += "ENGINEERING_USER_IDS=$EngineerUserObjectIds"
     }
