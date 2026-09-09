@@ -88,43 +88,37 @@ or GitHub session.
 
 ## Quick validation
 
-Use the same Toolbox and the same Tool Search query for both users:
+Use the same Toolbox and the same business question for both users:
 
 ```text
-risk current risk user team
-```
-
-In the agent session, use this validation prompt:
-
-```text
-Call tool_search exactly once with query "risk current risk user team".
-Return only the tool names and do not invoke call_tool.
+What is the largest current risk for my team?
 ```
 
 1. User A signs in to Foundry and authorizes the connection with their GitHub
    account.
-2. Invoke `tool_search` with the query above and save the returned tool names.
-3. User B signs in to Foundry and authorizes the same connection with their own
+2. Start a new agent session and ask the question above.
+3. Save the tools returned by Tool Search from the execution trace.
+4. User B signs in to Foundry and authorizes the same connection with their own
    GitHub account.
-4. Invoke `tool_search` with the exact same query and save the returned tool
-   names.
-5. Confirm that each result contains the shared identity tool and only that
+5. Start a new agent session and ask the exact same question.
+6. Save the tools returned by Tool Search from the execution trace.
+7. Confirm that each result contains the shared identity tool and only that
    user's role-specific risk tool.
 
-Expected and observed Tool Search results:
+Expected Tool Search results:
 
-| Signed-in role | Tools returned by the same Tool Search query |
+| Signed-in role | Tools returned for the same business question |
 |---|---|
-| Engineering | `get_current_user`, `search_service_incidents` |
-| Finance | `get_current_user`, `search_budget_variances` |
+| Engineering | `search_service_incidents`, `get_current_user` |
+| Finance | `search_budget_variances`, `get_current_user` |
 
 `search_budget_variances` was absent from the Engineering result.
-`search_service_incidents` was absent from the Finance result. The order shown
-is the returned order; ranking scores were not included in the response.
+`search_service_incidents` was absent from the Finance result. Result order may
+vary; ranking scores were not included in the response.
 
 This is the direct answer to the validation question: the Toolbox, version, and
-query are identical, but Tool Search returns different tools because the
-authenticated users receive different MCP catalogs.
+business question are identical, but Tool Search returns different tools
+because the authenticated users receive different MCP catalogs.
 
 ### Validate invocation as well
 
@@ -139,8 +133,8 @@ No role argument or user identifier is supplied to the script. It identifies
 the current user and invokes the role-specific tool selected for that user.
 
 The end-to-end script may call a role tool directly when Toolbox has already
-exposed or pinned that tool. Use the explicit `tool_search` comparison above
-when the goal is specifically to validate Tool Search output.
+exposed or pinned that tool. Use the execution-trace comparison above when the
+goal is specifically to validate Tool Search output.
 
 ## Observed results
 
@@ -185,18 +179,9 @@ Both catalogs also contain `get_current_user`.
 Tool Search does not search a shared union of Engineering and Finance tools.
 Its candidate set is derived from the current user's MCP catalog.
 
-In the observed Finance trace, Tool Search returned:
-
-| Search query | Returned tools |
-|---|---|
-| `get_current_user` | `get_current_user` |
-| `risk current risk user team` | `get_current_user`, `search_budget_variances` |
-| `risk search user risk incidents vulnerabilities` | `search_budget_variances`, `get_current_user` |
-
-Toolbox then invoked `get_current_user` and `search_budget_variances` through
-`call_tool`. A separate Engineering Tool Search using the same
-`risk current risk user team` query returned `get_current_user` and
-`search_service_incidents`.
+The observed Finance trace returned `get_current_user` and
+`search_budget_variances`, then invoked both tools. The Engineering comparison
+returned `search_service_incidents` and `get_current_user`.
 
 ## What this proves
 
