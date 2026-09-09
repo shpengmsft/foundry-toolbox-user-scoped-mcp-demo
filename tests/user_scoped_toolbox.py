@@ -134,9 +134,13 @@ async def run_test(args: argparse.Namespace) -> None:
         )
 
         print(f"Role: {args.expected_role}")
+        print(f"Toolbox Name and Version: {args.toolbox_name}:{args.toolbox_version}")
         print(f"Available tools: {', '.join(available_tools)}")
-        print(f"Called tools: {', '.join(tool_calls)}")
-        print(f"Response: {response.text}")
+        print(f"Expected tool calls: {expectation['expected']}")
+        print(f"Forbidden tool calls: {expectation['forbidden']}")
+        print(f"Actual tool calls: {', '.join(tool_calls)}")
+        print(f"Demo query: \"{args.query}\"")
+        print(f"Demo response: \"{response.text}\"")
     finally:
         await toolbox.close()
         await http_client.aclose()
