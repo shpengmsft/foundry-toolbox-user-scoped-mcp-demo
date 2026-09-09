@@ -94,8 +94,7 @@ Both users run the same script:
 .\.venv\Scripts\python.exe .\tests\user_scoped_toolbox.py
 ```
 
-The script asks `What is the largest current risk for my team?`. Do not mention
-Tool Search in the prompt; Toolbox performs discovery automatically.
+The script asks `What is the largest current risk for my team?`.
 
 1. User A signs in to Foundry and authorizes the connection with their GitHub
    account.
