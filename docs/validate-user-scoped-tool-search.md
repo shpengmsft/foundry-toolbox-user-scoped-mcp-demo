@@ -15,7 +15,7 @@ user.
 
 You need:
 
-- Access to the Foundry project containing `UserScopedToolbox:1`
+- A Foundry project with a published Toolbox connected to the demo MCP
 - A GitHub account
 - Python 3.11 or later
 - Azure CLI
@@ -33,6 +33,15 @@ cd .\foundry-toolbox-user-scoped-mcp-demo
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[toolbox-test]"
+```
+
+Set the values for your Foundry project and Toolbox:
+
+```powershell
+$env:FOUNDRY_PROJECT_ENDPOINT = "https://<resource>.services.ai.azure.com/api/projects/<project>"
+$env:FOUNDRY_TOOLBOX_NAME = "<toolbox-name>"
+$env:FOUNDRY_TOOLBOX_VERSION = "<toolbox-version>"
+$env:FOUNDRY_MODEL_DEPLOYMENT = "<model-deployment>"
 ```
 
 ## Run the validation
@@ -73,14 +82,14 @@ Each user must use their own Azure and GitHub sign-in.
 
 Both users use:
 
-- The same Toolbox: `UserScopedToolbox:1`
+- The same customer-created Toolbox and version
 - The same script
 - The same question: `What is the largest current risk for my team?`
 
 Engineering result:
 
 ```text
-Same Toolbox: UserScopedToolbox:1
+Same Toolbox: <toolbox-name>:<toolbox-version>
 User-specific tool: search_service_incidents
 Demo role: Engineering
 Largest current risk: ENG-1042 - Elevated checkout latency after deployment
@@ -89,7 +98,7 @@ Largest current risk: ENG-1042 - Elevated checkout latency after deployment
 Finance result:
 
 ```text
-Same Toolbox: UserScopedToolbox:1
+Same Toolbox: <toolbox-name>:<toolbox-version>
 User-specific tool: search_budget_variances
 Demo role: Finance
 Largest current risk: FIN-2041 - Cloud infrastructure is 18.4% over budget
