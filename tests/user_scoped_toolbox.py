@@ -16,9 +16,16 @@ DEFAULT_TOOLBOX_NAME = "UserScopedToolbox"
 DEFAULT_TOOLBOX_VERSION = "1"
 DEFAULT_MODEL = "gpt-5"
 DEFAULT_QUERY = "What is the largest current risk for my team?"
+IDENTITY_QUERY = (
+    "Call get_current_user and respond with exactly one line using its result: "
+    "You are <displayName> (GitHub user ID: <objectId>); "
+    "your role is <role> in this demo."
+)
 
 SYSTEM_PROMPT = (
-    "Use the available Toolbox tools to investigate the user's current team risk. "
+    "For an identity request, call get_current_user and return only the requested "
+    "one-line identity summary. Otherwise, use the available Toolbox tools to "
+    "investigate the user's current team risk. "
     "Use the role-specific search tool. Use only tool-returned data and respond in "
     "no more than three bullets. Do not call a mitigation-plan tool unless the user "
     "explicitly requests a plan. Do not add recommendations or ask a follow-up "
@@ -150,6 +157,13 @@ async def run_test(args: argparse.Namespace) -> None:
             instructions=SYSTEM_PROMPT,
             tools=[toolbox],
         )
+        identity_response = await agent.run(messages=IDENTITY_QUERY, stream=False)
+        identity_tool_evidence = response_tool_evidence(identity_response)
+        assert "get_current_user" in identity_tool_evidence, (
+            "Expected the identity check to select get_current_user; "
+            f"tool evidence was {identity_tool_evidence}"
+        )
+
         response = await agent.run(messages=args.query, stream=False)
         tool_calls = response_tool_calls(response)
         tool_evidence = response_tool_evidence(response)
@@ -183,6 +197,7 @@ async def run_test(args: argparse.Namespace) -> None:
             "Discovery mode: "
             f"{'direct tools' if direct_discovery else 'tool_search/call_tool'}"
         )
+        print(identity_response.text)
         print(f"Toolbox Name and Version: {args.toolbox_name}:{args.toolbox_version}")
         print(f"Available tools: {', '.join(available_tools)}")
         print(f"Expected tool calls: {expectation['expected']}")

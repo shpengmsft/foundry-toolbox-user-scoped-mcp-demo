@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import logging
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -47,6 +48,20 @@ def test_engineer_and_finance_receive_different_manifests():
         "get_cost_center_status",
         "create_spend_mitigation_plan",
     }
+
+
+def test_tools_list_logs_only_returned_tool_names(caplog):
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        response = request("tools/list", "demo-engineer")
+
+    assert response.status_code == 200
+    assert caplog.messages == [
+        "tools/list returned tools=['get_current_user', "
+        "'search_service_incidents', 'get_deployment_status', "
+        "'create_incident_mitigation_plan']"
+    ]
+    assert "demo-engineer" not in caplog.text
+    assert "Engineer User" not in caplog.text
 
 
 def test_initialize_requests_concise_grounded_output():

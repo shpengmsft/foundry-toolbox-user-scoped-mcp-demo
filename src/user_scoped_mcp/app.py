@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from urllib.parse import parse_qs
 
@@ -12,6 +13,7 @@ from .oauth_provider import get_fake_oauth_provider
 from .tools import call_tool, visible_tools
 
 PROTOCOL_VERSION = "2025-06-18"
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title="User-scoped MCP demo",
@@ -147,10 +149,15 @@ async def mcp(request: Request) -> Response:
         return JSONResponse(_result(request_id, {}))
 
     if method == "tools/list":
+        tools = visible_tools(actor)
+        logger.info(
+            "tools/list returned tools=%s",
+            [tool.name for tool in tools],
+        )
         return JSONResponse(
             _result(
                 request_id,
-                {"tools": [tool.manifest() for tool in visible_tools(actor)]},
+                {"tools": [tool.manifest() for tool in tools]},
             )
         )
 
