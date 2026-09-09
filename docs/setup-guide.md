@@ -193,10 +193,12 @@ environment:
 
 ```powershell
 python -m pip install -e ".[toolbox-test]"
-python .\tests\user_scoped_toolbox.py --expected-role engineering
+python .\tests\user_scoped_toolbox.py
 python .\tests\user_scoped_toolbox.py --expected-role finance
 ```
 
-Run the Engineering and Finance commands under their corresponding Foundry and
-GitHub user sessions. The script fails unless the Toolbox manifest and actual
-tool call match the expected role.
+The no-argument command defaults to Engineering. Run the Finance command under
+the coworker's Foundry and GitHub user session. Alternatively set
+`$env:EXPECTED_ROLE = "finance"` before launching the script from a debugger.
+The script fails unless the Toolbox manifest and actual tool call match the
+expected role.

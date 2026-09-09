@@ -148,9 +148,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--expected-role",
-        required=True,
+        default=os.getenv("EXPECTED_ROLE", "engineering").lower(),
         choices=sorted(ROLE_EXPECTATIONS),
-        help="Expected role for the GitHub account connected to this Foundry user.",
+        help=(
+            "Expected role for the connected GitHub user "
+            "(default: EXPECTED_ROLE or engineering)."
+        ),
     )
     parser.add_argument(
         "--endpoint",
