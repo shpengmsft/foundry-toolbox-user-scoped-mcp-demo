@@ -21,6 +21,11 @@ dev = [
   "pytest>=8.4,<9",
   "ruff>=0.12,<1",
 ]
+toolbox-test = [
+  "agent-framework>=1.16,<2",
+  "agent-framework-foundry>=1.11,<2",
+  "azure-identity>=1.25,<2",
+]
 
 [project.scripts]
 user-scoped-mcp = "user_scoped_mcp.app:main"

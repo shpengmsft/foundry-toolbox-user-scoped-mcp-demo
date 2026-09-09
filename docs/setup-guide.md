@@ -187,3 +187,16 @@ Expected comparison:
 Both traces should contain `external.mcp.tools/list`, followed by different
 role-specific `external.mcp.tools/call` operations while using the same MCP
 URL, connection, and Toolbox version.
+
+You can also run the Toolbox validation script from each user's authenticated
+environment:
+
+```powershell
+python -m pip install -e ".[toolbox-test]"
+python .\tests\user_scoped_toolbox.py --expected-role engineering
+python .\tests\user_scoped_toolbox.py --expected-role finance
+```
+
+Run the Engineering and Finance commands under their corresponding Foundry and
+GitHub user sessions. The script fails unless the Toolbox manifest and actual
+tool call match the expected role.
