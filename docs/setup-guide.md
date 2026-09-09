@@ -200,5 +200,12 @@ python .\tests\user_scoped_toolbox.py --expected-role finance
 The no-argument command defaults to Engineering. Run the Finance command under
 the coworker's Foundry and GitHub user session. Alternatively set
 `$env:EXPECTED_ROLE = "finance"` before launching the script from a debugger.
-The script fails unless the Toolbox manifest and actual tool call match the
-expected role.
+The script supports both Toolbox discovery modes:
+
+- Direct mode exposes the role-specific MCP tools in the initial manifest.
+- Progressive-disclosure mode initially exposes only `tool_search` and
+  `call_tool`; the script then verifies that Tool Search selects and calls the
+  expected role-specific tool.
+
+The script fails if the other role's tool appears in the manifest, Tool Search
+result, or call evidence.
