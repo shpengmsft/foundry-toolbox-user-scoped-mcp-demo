@@ -23,12 +23,8 @@ MODEL = os.getenv("FOUNDRY_MODEL_DEPLOYMENT", DEFAULT_MODEL)
 QUERY = os.getenv("DEMO_QUERY", DEFAULT_QUERY)
 
 SYSTEM_PROMPT = (
-    "First call get_current_user. Then call the role-specific search tool to answer "
-    "the user's risk question. Use only tool-returned data. Return exactly two short "
-    "lines. Line 1: You are <displayName> (GitHub user ID: <objectId>); your role is "
-    "<role> in this demo. Line 2: Largest current risk: <concise risk summary>. "
-    "Use ASCII characters only. Do not call a mitigation tool. For incidents, lower "
-    "severity means higher priority."
+    "Call get_current_user and the user-specific risk search tool, then briefly report "
+    "the user's name, GitHub ID, demo role, and largest current risk using ASCII text."
 )
 
 ROLE_TOOLS = ("search_service_incidents", "search_budget_variances")
@@ -130,7 +126,7 @@ async def run_demo() -> None:
 
         print(f"Same Toolbox: {TOOLBOX_NAME}:{TOOLBOX_VERSION}")
         print(f"User-specific tool: {selected_role_tool(evidence)}")
-        print(response.text)
+        print(response.text.replace("\u2013", "-").replace("\u2014", "-"))
     finally:
         await toolbox.close()
         await http_client.aclose()
